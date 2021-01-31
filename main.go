@@ -44,7 +44,7 @@ func main() {
 				Name:        "displayUnredacted",
 				Aliases:     []string{"dU"},
 				Value:       false,
-				Usage:       "Display Slack Token unredacted (At least make sure it is loaded)",
+				Usage:       "Display Slack Token unredacted (Otherwise make sure it is loaded)",
 				EnvVars:     []string{"slack-shell-config"},
 				Destination: &displayUnredacted,
 			},
