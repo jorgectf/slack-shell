@@ -15,6 +15,5 @@ Channel:`C01LSAV1E9W`
 # TO-DO
 
 * Optimize readers
-* Main msg and answer in thread
 * Split msg when limit reached (4k lines)
 * Change errors (reduce panics and send them thorugh slack)

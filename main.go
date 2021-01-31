@@ -112,15 +112,14 @@ func main() {
 					go func(ev *slack.DesktopNotificationEvent) {
 						fmt.Printf("Desktop Notification: %v\n", ev)
 
-						command, err := ParseMessage(ev.Content)
+						command, readableCommand, err := ParseMessage(ev.Content)
 						if err != nil {
 							panic(err)
 						}
 
-						toSend := fmt.Sprintf("Received: %s\n\n", ev.Content)
-
-						// send initial message
-						_, msgTimestamp, err := rtm.PostMessage(ev.Channel, slack.MsgOptionText(toSend, false))
+						// create thread
+						toSend := fmt.Sprintf("Executing: %s\n\n", readableCommand)
+						_, threadTimestamp, err := rtm.PostMessage(ev.Channel, slack.MsgOptionText(toSend, false))
 						if err != nil {
 							panic(err)
 						}
@@ -147,6 +146,9 @@ func main() {
 										break
 									}
 									toSend += string(line) + "\n"
+									if isDebug {
+										fmt.Println(len(line))
+									}
 								}
 								stdoutFinished = true
 							}()
@@ -168,9 +170,19 @@ func main() {
 										break
 									}
 									toSend += string(line) + "\n"
+									if isDebug {
+										fmt.Println(len(line))
+									}
 								}
 								stderrFinished = true
 							}()
+						}
+
+						// first reply
+						toSend = "Output: \n\n"
+						_, msgTimestamp, err := rtm.PostMessage(ev.Channel, slack.MsgOptionTS(threadTimestamp), slack.MsgOptionText(toSend, false))
+						if err != nil {
+							panic(err)
 						}
 
 						// must cmd.Start() *after* Std(out|err)Pipe()
@@ -179,6 +191,8 @@ func main() {
 							panic(err)
 						}
 
+						// refactor to use a function to handle this
+						// split msg when len() > 4000
 						for {
 							rtm.UpdateMessage(ev.Channel, msgTimestamp, slack.MsgOptionText("```"+toSend+"```", false))
 							time.Sleep(waitDuration)
@@ -242,7 +256,7 @@ func GetRedacted(unRedactedToken string) string {
 	return pattern.ReplaceAllString(unRedactedToken, "X")
 }
 
-func ParseMessage(message string) (string, error) {
+func ParseMessage(message string) (string, string, error) {
 	// jorgectf: @slackshellapp this is a command
 
 	// https://api.slack.com/reference/surfaces/formatting#escaping
@@ -265,13 +279,13 @@ func ParseMessage(message string) (string, error) {
 		" ",
 	)
 	if message == "" {
-		return "", fmt.Errorf("Empty command received. %s", message)
+		return "", "", fmt.Errorf("Empty command received. %s", message)
 	}
 
 	// convert to base64
-	message = b64.StdEncoding.EncodeToString([]byte(message))
+	command := b64.StdEncoding.EncodeToString([]byte(message))
 	// http://www.jackson-t.ca/runtime-exec-payloads.html
-	message = fmt.Sprintf("bash -c {echo,%s}|{base64,-d}|bash", message)
+	command = fmt.Sprintf("bash -c {echo,%s}|{base64,-d}|bash", command)
 
-	return message, nil
+	return command, message, nil
 }
