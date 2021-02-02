@@ -25,6 +25,7 @@ func main() {
 	var isDebug bool
 	var noStdout bool
 	var noStderr bool
+	var charLimit int
 
 	// urfave/cli declaration
 	app := &cli.App{
@@ -70,6 +71,13 @@ func main() {
 				Usage:       "Do not receive StdErr",
 				Destination: &noStderr,
 			},
+			&cli.IntFlag{
+				Name:        "char-limit",
+				Aliases:     []string{"cl"},
+				Value:       3000,
+				Usage:       "Limit of messages' length `INT`",
+				Destination: &charLimit,
+			},
 		},
 		Action: func(c *cli.Context) error {
 			Infof("Using %s as config file...", c.String("c"))
@@ -113,11 +121,16 @@ func main() {
 						}
 
 						// create thread
-						toSend := fmt.Sprintf("Executing: %s", readableCommand)
-						threadTimestamp, err := SlackNewThread(rtm, ev.Channel, toSend)
+						threadTimestamp, err := SlackNewThread(
+							rtm,
+							ev.Channel,
+							fmt.Sprintf("Executing: %s", readableCommand),
+						)
 						if err != nil {
 							panic(err)
 						}
+
+						var toSend string
 
 						splitCommand := strings.Split(command, " ")
 						cmd := exec.Command(
@@ -173,30 +186,58 @@ func main() {
 							}()
 						}
 
-						// first reply
-						toSend = "Output: \n\n"
-						msgTimestamp, err := SlackNewReply(rtm, ev.Channel, threadTimestamp, toSend)
-						if err != nil {
-							panic(err)
-						}
-
 						// must cmd.Start() *after* Std(out|err)Pipe()
 						err = cmd.Start()
 						if err != nil {
 							panic(err)
 						}
 
-						// refactor to use a function to handle this
-						// split msg when len() > 4000
-						for {
-							SlackUpdateMessage(rtm, ev.Channel, msgTimestamp, toSend)
-							time.Sleep(c.Duration("w"))
+						// first reply
+						msgTimestamp, err := SlackNewReply(rtm, ev.Channel, threadTimestamp, "Output is coming :P")
+						if err != nil {
+							panic(err)
+						}
+						time.Sleep(c.Duration("w"))
 
-							if stdoutFinished && stderrFinished {
-								toSend += "\n" + "Command finished"
-								SlackUpdateMessage(rtm, ev.Channel, msgTimestamp, toSend)
-								break
+						index := 0
+						var needsNewReply bool
+						var now string
+						for {
+							now = toSend // avoid goroutines pollution
+							if len(now) > charLimit*(index+1) {
+								_, err = SlackUpdateMessage(rtm,
+									ev.Channel,
+									msgTimestamp,
+									toSend[charLimit*index:charLimit*(index+1)],
+								)
+								index += 1
+								needsNewReply = true
+								if err != nil {
+									panic(err)
+								}
+							} else {
+								if needsNewReply {
+									msgTimestamp, err = SlackNewReply(rtm,
+										ev.Channel,
+										threadTimestamp,
+										now[charLimit*index:len(now)-1],
+									)
+									needsNewReply = false
+									if err != nil {
+										panic(err)
+									}
+								} else {
+									_, err = SlackUpdateMessage(rtm,
+										ev.Channel,
+										msgTimestamp,
+										now[charLimit*index:len(now)-1],
+									)
+									if err != nil {
+										panic(err)
+									}
+								}
 							}
+							time.Sleep(c.Duration("w"))
 						}
 
 					}(ev)
