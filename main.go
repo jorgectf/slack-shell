@@ -113,8 +113,8 @@ func main() {
 						}
 
 						// create thread
-						toSend := fmt.Sprintf("Executing: %s\n\n", readableCommand)
-						_, threadTimestamp, err := rtm.PostMessage(ev.Channel, slack.MsgOptionText(toSend, false))
+						toSend := fmt.Sprintf("Executing: %s", readableCommand)
+						threadTimestamp, err := SlackNewThread(rtm, ev.Channel, toSend)
 						if err != nil {
 							panic(err)
 						}
@@ -175,7 +175,7 @@ func main() {
 
 						// first reply
 						toSend = "Output: \n\n"
-						_, msgTimestamp, err := rtm.PostMessage(ev.Channel, slack.MsgOptionTS(threadTimestamp), slack.MsgOptionText(toSend, false))
+						msgTimestamp, err := SlackNewReply(rtm, ev.Channel, threadTimestamp, toSend)
 						if err != nil {
 							panic(err)
 						}
@@ -189,12 +189,12 @@ func main() {
 						// refactor to use a function to handle this
 						// split msg when len() > 4000
 						for {
-							rtm.UpdateMessage(ev.Channel, msgTimestamp, slack.MsgOptionText("```"+toSend+"```", false))
+							SlackUpdateMessage(rtm, ev.Channel, msgTimestamp, toSend)
 							time.Sleep(c.Duration("w"))
 
 							if stdoutFinished && stderrFinished {
 								toSend += "\n" + "Command finished"
-								rtm.UpdateMessage(ev.Channel, msgTimestamp, slack.MsgOptionText("```"+toSend+"```", false))
+								SlackUpdateMessage(rtm, ev.Channel, msgTimestamp, toSend)
 								break
 							}
 						}
@@ -223,6 +223,33 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+}
+
+func SlackNewThread(rtm *slack.RTM, channel, message string) (string, error) {
+	_, threadTimestamp, err := rtm.PostMessage(channel, slack.MsgOptionText(message, false))
+
+	if err != nil {
+		return "", err
+	}
+	return threadTimestamp, nil
+}
+
+func SlackNewReply(rtm *slack.RTM, channel, threadTimestamp, message string) (string, error) {
+	_, msgTimestamp, err := rtm.PostMessage(channel, slack.MsgOptionTS(threadTimestamp), slack.MsgOptionText(message, false))
+
+	if err != nil {
+		return "", err
+	}
+	return msgTimestamp, nil
+}
+
+func SlackUpdateMessage(rtm *slack.RTM, channel, msgTimestamp, message string) (string, error) {
+	_, _, _, err := rtm.UpdateMessage(channel, msgTimestamp, slack.MsgOptionText(message, false))
+
+	if err != nil {
+		return "", err
+	}
+	return msgTimestamp, nil
 }
 
 // utils
