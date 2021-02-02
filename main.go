@@ -21,13 +21,10 @@ import (
 
 // main func
 func main() {
-	var configFilePath string
-	var displayUnredacted bool
 	var displayToken string
 	var isDebug bool
 	var noStdout bool
 	var noStderr bool
-	var waitDuration time.Duration
 
 	// urfave/cli declaration
 	app := &cli.App{
@@ -38,7 +35,6 @@ func main() {
 				Value:       "config.json",
 				Usage:       "Path to configuration `FILE`",
 				EnvVars:     []string{"slack-shell-config"},
-				Destination: &configFilePath,
 			},
 			&cli.BoolFlag{
 				Name:        "displayUnredacted",
@@ -46,13 +42,12 @@ func main() {
 				Value:       false,
 				Usage:       "Display Slack Token unredacted (Otherwise make sure it is loaded)",
 				EnvVars:     []string{"slack-shell-config"},
-				Destination: &displayUnredacted,
 			},
 			&cli.DurationFlag{
 				Name:        "wait",
+				Aliases:     []string{"w"},
 				Value:       5 * time.Second,
 				Usage:       "Wait duration between requests.",
-				Destination: &waitDuration,
 			},
 			&cli.BoolFlag{
 				Name:        "debug",
@@ -77,9 +72,9 @@ func main() {
 			},
 		},
 		Action: func(c *cli.Context) error {
-			Infof("Using %s as config file...", configFilePath)
+			Infof("Using %s as config file...", c.String("c"))
 
-			conf, err := LoadConfigFromFile(configFilePath)
+			conf, err := LoadConfigFromFile(c.String("c"))
 			if err != nil {
 				panic(err)
 			}
@@ -195,7 +190,7 @@ func main() {
 						// split msg when len() > 4000
 						for {
 							rtm.UpdateMessage(ev.Channel, msgTimestamp, slack.MsgOptionText("```"+toSend+"```", false))
-							time.Sleep(waitDuration)
+							time.Sleep(c.Duration("w"))
 
 							if stdoutFinished && stderrFinished {
 								toSend += "\n" + "Command finished"
