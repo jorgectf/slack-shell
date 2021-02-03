@@ -26,6 +26,7 @@ func main() {
 	var noStdout bool
 	var noStderr bool
 	var charLimit int
+	var msgFormatting string
 
 	// urfave/cli declaration
 	app := &cli.App{
@@ -78,6 +79,14 @@ func main() {
 				Usage:       "Limit of messages' length `INT`",
 				Destination: &charLimit,
 			},
+			&cli.StringFlag{
+				Name:        "message-surrounding",
+				Aliases:     []string{"ms"},
+				Value:       "```%s```",
+				Usage:       "Messages formatting `STRING`",
+				Destination: &msgFormatting,
+			},
+
 		},
 		Action: func(c *cli.Context) error {
 			Infof("Using %s as config file...", c.String("c"))
@@ -125,6 +134,7 @@ func main() {
 							rtm,
 							ev.Channel,
 							fmt.Sprintf("Executing: %s", readableCommand),
+							msgFormatting,
 						)
 						if err != nil {
 							panic(err)
@@ -193,7 +203,12 @@ func main() {
 						}
 
 						// first reply
-						msgTimestamp, err := SlackNewReply(rtm, ev.Channel, threadTimestamp, "Output is coming :P")
+						msgTimestamp, err := SlackNewReply(rtm,
+							ev.Channel,
+							threadTimestamp,
+							"Output is coming :P",
+							msgFormatting,
+						)
 						if err != nil {
 							panic(err)
 						}
@@ -209,6 +224,7 @@ func main() {
 									ev.Channel,
 									msgTimestamp,
 									toSend[charLimit*index:charLimit*(index+1)],
+									msgFormatting,
 								)
 								index += 1
 								needsNewReply = true
@@ -222,6 +238,7 @@ func main() {
 											ev.Channel,
 											threadTimestamp,
 											now[charLimit*index:charLimit*(index+1)],
+											msgFormatting,
 										)
 										index += 1
 									} else {
@@ -229,6 +246,7 @@ func main() {
 											ev.Channel,
 											threadTimestamp,
 											now[charLimit*index:len(now)-1],
+											msgFormatting,
 										)
 										needsNewReply = false
 									}
@@ -240,6 +258,7 @@ func main() {
 										ev.Channel,
 										msgTimestamp,
 										now[charLimit*index:len(now)-1],
+										msgFormatting,
 									)
 									if err != nil {
 										panic(err)
@@ -285,8 +304,14 @@ func main() {
 	}
 }
 
-func SlackNewThread(rtm *slack.RTM, channel, message string) (string, error) {
-	_, threadTimestamp, err := rtm.PostMessage(channel, slack.MsgOptionText(message, false))
+func SlackNewThread(rtm *slack.RTM, channel, message, msgFormatting string) (string, error) {
+	_, threadTimestamp, err := rtm.PostMessage(
+		channel,
+		slack.MsgOptionText(
+			fmt.Sprintf(msgFormatting, message), 
+			false,
+		),
+	)
 
 	if err != nil {
 		return "", err
@@ -294,8 +319,15 @@ func SlackNewThread(rtm *slack.RTM, channel, message string) (string, error) {
 	return threadTimestamp, nil
 }
 
-func SlackNewReply(rtm *slack.RTM, channel, threadTimestamp, message string) (string, error) {
-	_, msgTimestamp, err := rtm.PostMessage(channel, slack.MsgOptionTS(threadTimestamp), slack.MsgOptionText(message, false))
+func SlackNewReply(rtm *slack.RTM, channel, threadTimestamp, message, msgFormatting string) (string, error) {
+	_, msgTimestamp, err := rtm.PostMessage(
+		channel,
+		slack.MsgOptionTS(threadTimestamp),
+		slack.MsgOptionText(
+			fmt.Sprintf(msgFormatting, message), 
+			false,
+		),
+	)
 
 	if err != nil {
 		return "", err
@@ -303,8 +335,15 @@ func SlackNewReply(rtm *slack.RTM, channel, threadTimestamp, message string) (st
 	return msgTimestamp, nil
 }
 
-func SlackUpdateMessage(rtm *slack.RTM, channel, msgTimestamp, message string) (string, error) {
-	_, _, _, err := rtm.UpdateMessage(channel, msgTimestamp, slack.MsgOptionText(message, false))
+func SlackUpdateMessage(rtm *slack.RTM, channel, msgTimestamp, message, msgFormatting string) (string, error) {
+	_, _, _, err := rtm.UpdateMessage(
+		channel,
+		msgTimestamp,
+		slack.MsgOptionText(
+			fmt.Sprintf(msgFormatting, message), 
+			false,
+			),
+		)
 
 	if err != nil {
 		return "", err
