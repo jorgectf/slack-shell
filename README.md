@@ -15,4 +15,5 @@ Channel:`C01LSAV1E9W`
 # TO-DO
 
 * Optimize readers
-* Change errors (reduce panics and send them thorugh slack)
+* Change errors (reduce panics and send them through slack)
+* Avoid line splitting on different replies

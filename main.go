@@ -200,11 +200,11 @@ func main() {
 						time.Sleep(c.Duration("w"))
 
 						index := 0
-						var needsNewReply bool
-						var now string
+						needsNewReply := false
+						hasFinished := false
 						for {
-							now = toSend // avoid goroutines pollution
-							if len(now) > charLimit*(index+1) {
+							now := toSend // avoid goroutines pollution through execution
+							if len(now) > charLimit*(index+1) && !needsNewReply {
 								_, err = SlackUpdateMessage(rtm,
 									ev.Channel,
 									msgTimestamp,
@@ -217,12 +217,21 @@ func main() {
 								}
 							} else {
 								if needsNewReply {
-									msgTimestamp, err = SlackNewReply(rtm,
-										ev.Channel,
-										threadTimestamp,
-										now[charLimit*index:len(now)-1],
-									)
-									needsNewReply = false
+									if len(now) > charLimit*(index+1) {
+										msgTimestamp, err = SlackNewReply(rtm,
+											ev.Channel,
+											threadTimestamp,
+											now[charLimit*index:charLimit*(index+1)],
+										)
+										index += 1
+									} else {
+										msgTimestamp, err = SlackNewReply(rtm,
+											ev.Channel,
+											threadTimestamp,
+											now[charLimit*index:len(now)-1],
+										)
+										needsNewReply = false
+									}
 									if err != nil {
 										panic(err)
 									}
@@ -237,6 +246,16 @@ func main() {
 									}
 								}
 							}
+
+							// make sure loop is redone and all the output is sent
+							if hasFinished && !needsNewReply {
+								Infof("%s finished", readableCommand)
+								break
+							}
+							if stdoutFinished && stderrFinished {
+								hasFinished = true
+							}
+
 							time.Sleep(c.Duration("w"))
 						}
 
